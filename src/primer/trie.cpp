@@ -105,7 +105,7 @@ auto Trie::remove(std::shared_ptr<const TrieNode> cur, std::string_view key,
     -> std::tuple<bool, std::shared_ptr<const TrieNode>> {
   char k = key[key_index];
   if (cur->children_.count(k) == 0) {
-    return std::make_tuple(false, nullptr);
+    return {false, nullptr};
   }
 
   bool do_remove;
@@ -129,17 +129,17 @@ auto Trie::remove(std::shared_ptr<const TrieNode> cur, std::string_view key,
       if (cur->children_.size() > 1 || cur->is_value_node_) {
         auto new_node = std::shared_ptr<TrieNode>(cur->Clone());
         new_node->children_.erase(k);
-        return std::make_tuple(true, new_node);
+        return {true, new_node};
       } else {
-        return std::make_tuple(true, nullptr);  // after deleting child, cur has no child, so also delete it
+        return {true, nullptr};  // after deleting child, cur has no child, so also delete it
       }
     } else {
       auto new_node = std::shared_ptr<TrieNode>(cur->Clone());
       new_node->children_[k] = new_child;
-      return std::make_tuple(true, new_node);
+      return {true, new_node};
     }
   } else {
-    return std::make_tuple(false, nullptr);
+    return {false, nullptr};
   }
 }
 
