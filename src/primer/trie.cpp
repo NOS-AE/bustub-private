@@ -82,8 +82,7 @@ auto Trie::Put(std::string_view key, T value) const -> Trie {
     } else {
       auto child = node->children_.at(k);
       if (i == key.length() - 1) {
-        new_node =
-            std::make_shared<TrieNodeWithValue<T>>(child->children_, value_p);
+        new_node = std::make_shared<TrieNodeWithValue<T>>(child->children_, value_p);
       } else {
         new_node = child->Clone();
       }
@@ -100,8 +99,7 @@ auto Trie::Put(std::string_view key, T value) const -> Trie {
 // see cur as root, key[key_index:] as key, try to do "remove"
 // return whether "remove" is done, and return a new root if "remove" takes place.
 // (no remove if key not exist or try to remove a TrieNode which has no value)
-auto Trie::remove(std::shared_ptr<const TrieNode> cur, std::string_view key,
-                  size_t key_index)
+auto Trie::remove(std::shared_ptr<const TrieNode> cur, std::string_view key, size_t key_index)
     -> std::tuple<bool, std::shared_ptr<const TrieNode>> {
   char k = key[key_index];
   if (cur->children_.count(k) == 0) {

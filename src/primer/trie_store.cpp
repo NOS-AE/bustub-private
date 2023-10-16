@@ -22,8 +22,8 @@ auto TrieStore::Get(std::string_view key) -> std::optional<ValueGuard<T>> {
   if (value == nullptr) {
     return std::nullopt;
   }
-  
-  return { ValueGuard(trie, *value) };
+
+  return {ValueGuard(trie, *value)};
 }
 
 template <class T>

@@ -33,23 +33,21 @@ auto LRUKNode::SetEvictable(bool evictable) -> bool {
 auto LRUKNode::operator<(const LRUKNode &node) const -> bool {
   if (history_.size() < k_) {
     if (node.history_.size() < k_) {
-      return history_.back() < node.history_.back();
-    } else {
-      return true;
-    }
-  } else {
-    if (node.history_.size() < k_) {
-      return false;
-    } else {
       return history_.front() < node.history_.front();
     }
+    return true;
   }
+  if (node.history_.size() < k_) {
+    return false;
+  }
+  return history_.front() < node.history_.front();
 }
 
-LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k)
-    : replacer_size_(num_frames), k_(k) {}
+LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_frames), k_(k) {}
 
 auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
+  std::unique_lock lock(latch_);
+
   const LRUKNode *victim = nullptr;
   for (const auto &p : node_store_) {
     if (!p.second.is_evictable_) {
@@ -70,8 +68,9 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
   return true;
 }
 
-void LRUKReplacer::RecordAccess(frame_id_t frame_id,
-                                [[maybe_unused]] AccessType access_type) {
+void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType access_type) {
+  std::unique_lock lock(latch_);
+
   // try_emplace相当于"emplace if exist"
   auto t = node_store_.try_emplace(frame_id, frame_id, k_);
   auto &node = t.first->second;
@@ -80,6 +79,8 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id,
 }
 
 void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
+  std::unique_lock lock(latch_);
+
   // 如果frame_id不存在，at函数会抛异常
   auto &node = node_store_.at(frame_id);
   if (node.SetEvictable(set_evictable)) {
@@ -88,6 +89,8 @@ void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
 }
 
 void LRUKReplacer::Remove(frame_id_t frame_id) {
+  std::unique_lock lock(latch_);
+
   if (node_store_.count(frame_id) == 0) {
     return;
   }
@@ -99,6 +102,9 @@ void LRUKReplacer::Remove(frame_id_t frame_id) {
   curr_size_--;
 }
 
-auto LRUKReplacer::Size() -> size_t { return curr_size_; }
+auto LRUKReplacer::Size() -> size_t {
+  std::unique_lock lock(latch_);
+  return curr_size_;
+}
 
 }  // namespace bustub

@@ -276,12 +276,14 @@ auto main(int argc, char **argv) -> int {
       while (!metrics.ShouldFinish()) {
         auto page_idx = dist(gen);
         auto *page = bpm->FetchPage(page_ids[page_idx], AccessType::Lookup);
+        // std::cout << std::this_thread::get_id() << "  fuck  " << page->GetPageId() << " " << uintptr_t(page->GetData()) << std::endl;
         if (page == nullptr) {
           fmt::println(stderr, "cannot fetch page");
           std::terminate();
         }
 
         page->RLatch();
+        // std::cout << std::this_thread::get_id() << "        " << page->GetPageId() << " " << uintptr_t(page->GetData()) << std::endl;
         CheckPageConsistentNoSeed(page->GetData(), page_idx);
         page->RUnlatch();
 

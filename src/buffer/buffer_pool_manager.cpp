@@ -39,6 +39,8 @@ BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager
 BufferPoolManager::~BufferPoolManager() { delete[] pages_; }
 
 auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
+  std::unique_lock lock(latch_);
+
   // 1. 选择可用的frame
   frame_id_t frame_id;
   bool is_free = false;
@@ -51,22 +53,24 @@ auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
       return nullptr;
     }
   }
-  Page& frame = pages_[frame_id];
+  Page &frame = pages_[frame_id];
   if (!is_free) {
     page_table_.erase(frame.page_id_);
   }
 
   // 2. 写回frame
   if (frame.is_dirty_) {
+    char wbuf[BUSTUB_PAGE_SIZE]{};
+    memcpy(wbuf, frame.data_, BUSTUB_PAGE_SIZE);
     DiskRequest req = DiskRequest();
     req.is_write_ = true;
-    req.data_ = frame.data_;
+    req.data_ = wbuf;
     req.page_id_ = frame.page_id_;
     auto future = req.callback_.get_future();
     disk_scheduler_->Schedule(std::move(req));
     future.wait();
   }
-  
+
   // 3. 设置metadata
   frame.is_dirty_ = false;
   frame.pin_count_ = 1;
@@ -76,22 +80,26 @@ auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
   page_table_[frame.page_id_] = frame_id;
   replacer_->RecordAccess(frame_id);
   replacer_->SetEvictable(frame_id, false);
-  
+
   // 返回结果
   *page_id = frame.page_id_;
   return &frame;
 }
 
 auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType access_type) -> Page * {
+  std::unique_lock lock(latch_);
+  frame_id_t frame_id = INVALID_PAGE_ID;
   // 1. 如果page还在，则继续使用
   if (page_table_.count(page_id) > 0) {
-    Page &page = pages_[page_table_[page_id]];
+    frame_id = page_table_[page_id];
+    Page &page = pages_[frame_id];
     page.pin_count_++;
+    replacer_->RecordAccess(frame_id);
+    replacer_->SetEvictable(frame_id, false);
     return &page;
   }
 
   // 2. 选择可用的frame
-  frame_id_t frame_id = INVALID_PAGE_ID;
   bool is_free = false;
   if (!free_list_.empty()) {
     frame_id = free_list_.front();
@@ -102,12 +110,13 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
       return nullptr;
     }
   }
-  Page& frame = pages_[frame_id];
+  Page &frame = pages_[frame_id];
   if (!is_free) {
     page_table_.erase(frame.page_id_);
   }
 
-  // 3. 异步写回frame，同步读入page
+  // 3. 写回frame
+  std::future<bool> wfuture;
   if (frame.is_dirty_) {
     char wbuf[BUSTUB_PAGE_SIZE]{};
     memcpy(wbuf, frame.data_, BUSTUB_PAGE_SIZE);
@@ -115,24 +124,28 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
     wreq.is_write_ = true;
     wreq.data_ = wbuf;
     wreq.page_id_ = frame.page_id_;
-    auto wfuture = wreq.callback_.get_future();
+    wfuture = wreq.callback_.get_future();
     disk_scheduler_->Schedule(std::move(wreq));
     wfuture.wait();
-
-    DiskRequest rreq;
-    rreq.is_write_ = false;
-    rreq.data_ = frame.data_;
-    rreq.page_id_ = page_id;
-    auto rfuture = rreq.callback_.get_future();
-    disk_scheduler_->Schedule(std::move(rreq));
-    rfuture.wait();
   }
+  // std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+  // 4. 读入page
+  DiskRequest rreq;
+  rreq.data_ = frame.data_;
+  rreq.is_write_ = false;
+  rreq.page_id_ = page_id;
+  auto rfuture = rreq.callback_.get_future();
+  disk_scheduler_->Schedule(std::move(rreq));
+
+  // if (frame.is_dirty_) wfuture.wait();
+  rfuture.wait();
 
   // 4. 设置metadata
   frame.is_dirty_ = false;
   frame.pin_count_ = 1;
   frame.page_id_ = page_id;
-  
+
   // 5. 映射page到frame，并pin frame
   page_table_[frame.page_id_] = frame_id;
   replacer_->RecordAccess(frame_id);
@@ -141,13 +154,15 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
 }
 
 auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unused]] AccessType access_type) -> bool {
+  std::unique_lock lock(latch_);
+
   // 1. 查找frame
   if (page_table_.count(page_id) == 0) {
     return false;
   }
   frame_id_t frame_id = page_table_[page_id];
-  Page& frame = pages_[frame_id];
-  
+  Page &frame = pages_[frame_id];
+
   // 2. 检查pin count
   if (frame.pin_count_ == 0) {
     return false;
@@ -155,7 +170,7 @@ auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unus
 
   // 3. unpin
   frame.pin_count_--;
-  frame.is_dirty_ = is_dirty;
+  frame.is_dirty_ |= is_dirty;
   if (frame.pin_count_ == 0) {
     replacer_->SetEvictable(frame_id, true);
   }
@@ -163,14 +178,16 @@ auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unus
 }
 
 auto BufferPoolManager::FlushPage(page_id_t page_id) -> bool {
+  std::unique_lock lock(latch_);
+
   // 1. 查找frame
   if (page_table_.count(page_id) == 0) {
     return false;
   }
   frame_id_t frame_id = page_table_[page_id];
-  Page& frame = pages_[frame_id];
+  Page &frame = pages_[frame_id];
 
-  // 2. flush REGARDLESS of the dirty flag，异步写回
+  // 2. flush REGARDLESS of the dirty flag
   char wbuf[BUSTUB_PAGE_SIZE]{};
   memcpy(wbuf, frame.data_, BUSTUB_PAGE_SIZE);
   DiskRequest wreq;
@@ -185,19 +202,21 @@ auto BufferPoolManager::FlushPage(page_id_t page_id) -> bool {
 }
 
 void BufferPoolManager::FlushAllPages() {
-  for (const auto& p : page_table_) {
+  for (const auto &p : page_table_) {
     FlushPage(p.first);
   }
 }
 
 auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
+  std::unique_lock lock(latch_);
+
   // 1. 查找frame
   if (page_table_.count(page_id) == 0) {
     return true;
   }
   frame_id_t frame_id = page_table_[page_id];
-  Page& frame = pages_[frame_id];
-  
+  Page &frame = pages_[frame_id];
+
   // 2. 如果不是pinned则删除（TODO:是否需要写回）
   if (frame.pin_count_ > 0) {
     return false;

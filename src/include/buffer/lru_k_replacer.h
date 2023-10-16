@@ -30,14 +30,14 @@ class LRUKNode {
   /** History of last seen K timestamps of this page. Least recent timestamp stored in front. */
   // Remove maybe_unused if you start using them. Feel free to change the member variables as you want.
 
-  LRUKNode() = default; // for map::get
-  LRUKNode(frame_id_t fid, size_t k): fid_(fid), k_(k) {}
+  LRUKNode() = default;  // for map::get
+  LRUKNode(frame_id_t fid, size_t k) : fid_(fid), k_(k) {}
 
   void Access(size_t timestamp);
 
   auto SetEvictable(bool evictable) -> bool;
 
-  auto operator<(const LRUKNode& node) const -> bool;
+  auto operator<(const LRUKNode &node) const -> bool;
 
   frame_id_t fid_;
   size_t k_;
