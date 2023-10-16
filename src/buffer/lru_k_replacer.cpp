@@ -60,6 +60,7 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
     }
   }
   if (victim == nullptr) {
+    *frame_id = INVALID_PAGE_ID;
     return false;
   }
 
