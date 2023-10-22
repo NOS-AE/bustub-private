@@ -77,7 +77,7 @@ auto DiskExtendibleHashTable<K, V, KC>::GetValue(const K &key, std::vector<V> *r
   }
   dir_page.Drop();
   auto bucket_page = bpm_->FetchPageRead(bucket_page_id);
-  const ExtendibleHTableBucketPage<K, V, KC> *bucket = bucket_page.template As<ExtendibleHTableBucketPage<K, V, KC>>();
+  const auto *bucket = bucket_page.template As<ExtendibleHTableBucketPage<K, V, KC>>();
   // 4. 查找bucket
   V value;
   if (!bucket->Lookup(key, value, cmp_)) {
@@ -139,7 +139,7 @@ auto DiskExtendibleHashTable<K, V, KC>::InsertToDirectory(ExtendibleHTableDirect
   } else {
     bucket_page = bpm_->FetchPageWrite(bucket_page_id);
   }
-  ExtendibleHTableBucketPage<K, V, KC> *bucket = bucket_page.AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
+  auto bucket = bucket_page.AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
   if (is_new_bucket) {
     bucket->Init(bucket_max_size_);
   }
@@ -157,13 +157,13 @@ auto DiskExtendibleHashTable<K, V, KC>::InsertToDirectory(ExtendibleHTableDirect
   // 4. 分裂bucket
   page_id_t new_bucket_page_id;
   auto new_bucket_page = bpm_->NewPageGuarded(&new_bucket_page_id).UpgradeWrite();
-  decltype(bucket) new_bucket = new_bucket_page.template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
+  auto new_bucket = new_bucket_page.template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
   new_bucket->Init(bucket_max_size_);
   auto new_mask = 1 << dir->GetLocalDepth(bucket_idx);
   for (int64_t i = bucket->Size() - 1; i >= 0; i--) {
     std::pair<K, V> e = bucket->EntryAt(i);
     uint32_t h = Hash(e.first);
-    if (h & new_mask) {
+    if ((h & new_mask) != 0) {
       new_bucket->Insert(e.first, e.second, cmp_);
       bucket->RemoveAt(static_cast<uint32_t>(i));
     }
@@ -172,7 +172,7 @@ auto DiskExtendibleHashTable<K, V, KC>::InsertToDirectory(ExtendibleHTableDirect
   auto dir_size = dir->Size();
   for (uint32_t idx = hash & dir->GetLocalDepthMask(bucket_idx), step = new_mask; idx < dir_size; idx += step) {
     dir->IncrLocalDepth(idx);
-    if (idx & step) {  // 1xxx指向new_bucket，0xxx指向原来的bucket
+    if ((idx & step) != 0) {  // 1xxx指向new_bucket，0xxx指向原来的bucket
       dir->SetBucketPageId(idx, new_bucket_page_id);
     }
   }
@@ -210,7 +210,7 @@ auto DiskExtendibleHashTable<K, V, KC>::Remove(const K &key, Transaction *transa
     return false;
   }
   auto bucket_page = bpm_->FetchPageWrite(bucket_page_id);
-  ExtendibleHTableBucketPage<K, V, KC> *bucket = bucket_page.template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
+  auto bucket = bucket_page.template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
   // 4. 删除元素
   if (!bucket->Remove(key, cmp_)) {
     return false;
@@ -225,8 +225,7 @@ auto DiskExtendibleHashTable<K, V, KC>::Remove(const K &key, Transaction *transa
     auto merge_bucket_idx = bucket_idx ^ merge_mask;
     auto merge_bucket_page_id = dir->GetBucketPageId(merge_bucket_idx);
     auto merge_bucket_page = bpm_->FetchPageRead(merge_bucket_page_id);
-    const ExtendibleHTableBucketPage<K, V, KC> *merge_bucket =
-        merge_bucket_page.template As<ExtendibleHTableBucketPage<K, V, KC>>();
+    const auto *merge_bucket = merge_bucket_page.template As<ExtendibleHTableBucketPage<K, V, KC>>();
     if (!bucket->MergeBucket(*merge_bucket, cmp_)) {
       break;
     }

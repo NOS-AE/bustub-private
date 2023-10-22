@@ -99,7 +99,7 @@ auto Trie::Put(std::string_view key, T value) const -> Trie {
 // see cur as root, key[key_index:] as key, try to do "remove"
 // return whether "remove" is done, and return a new root if "remove" takes place.
 // (no remove if key not exist or try to remove a TrieNode which has no value)
-auto Trie::remove(std::shared_ptr<const TrieNode> cur, std::string_view key, size_t key_index)
+auto Trie::Remove(const std::shared_ptr<const TrieNode> &cur, std::string_view key, size_t key_index)
     -> std::tuple<bool, std::shared_ptr<const TrieNode>> {
   char k = key[key_index];
   if (cur->children_.count(k) == 0) {
@@ -119,7 +119,7 @@ auto Trie::remove(std::shared_ptr<const TrieNode> cur, std::string_view key, siz
       new_child = nullptr;
     }
   } else {
-    std::tie(do_remove, new_child) = remove(child, key, key_index + 1);
+    std::tie(do_remove, new_child) = Remove(child, key, key_index + 1);
   }
 
   if (do_remove) {
@@ -128,17 +128,14 @@ auto Trie::remove(std::shared_ptr<const TrieNode> cur, std::string_view key, siz
         auto new_node = std::shared_ptr<TrieNode>(cur->Clone());
         new_node->children_.erase(k);
         return {true, new_node};
-      } else {
-        return {true, nullptr};  // after deleting child, cur has no child, so also delete it
       }
-    } else {
-      auto new_node = std::shared_ptr<TrieNode>(cur->Clone());
-      new_node->children_[k] = new_child;
-      return {true, new_node};
+      return {true, nullptr};  // after deleting child, cur has no child, so also delete it
     }
-  } else {
-    return {false, nullptr};
+    auto new_node = std::shared_ptr<TrieNode>(cur->Clone());
+    new_node->children_[k] = new_child;
+    return {true, new_node};
   }
+  return {false, nullptr};
 }
 
 auto Trie::Remove(std::string_view key) const -> Trie {
@@ -154,18 +151,16 @@ auto Trie::Remove(std::string_view key) const -> Trie {
   if (key.empty()) {
     if (root_->is_value_node_) {
       return Trie(std::make_shared<TrieNode>(root_->children_));
-    } else {
-      return *this;
     }
+    return *this;
   }
 
-  auto [do_delete, new_node] = remove(root_, key, 0);
+  auto [do_delete, new_node] = Remove(root_, key, 0);
 
   if (do_delete) {
     return Trie(new_node);
-  } else {
-    return *this;
   }
+  return *this;
 }
 
 // Below are explicit instantiation of template functions.

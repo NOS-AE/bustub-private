@@ -133,7 +133,7 @@ class Trie {
   auto GetRoot() const -> std::shared_ptr<const TrieNode> { return root_; }
 
  private:
-  static auto remove(std::shared_ptr<const TrieNode> cur, std::string_view key, size_t key_index)
+  static auto Remove(const std::shared_ptr<const TrieNode> &cur, std::string_view key, size_t key_index)
       -> std::tuple<bool, std::shared_ptr<const TrieNode>>;
 };
 

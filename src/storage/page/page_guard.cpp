@@ -17,7 +17,9 @@ BasicPageGuard::BasicPageGuard(BasicPageGuard &&that) noexcept {
 }
 
 void BasicPageGuard::Drop() {
-  if (page_ == nullptr) return;
+  if (page_ == nullptr) {
+    return;
+  }
   bpm_->UnpinPage(page_->GetPageId(), is_dirty_);
   page_ = nullptr;
   bpm_ = nullptr;
@@ -44,7 +46,9 @@ auto BasicPageGuard::operator=(BasicPageGuard &&that) noexcept -> BasicPageGuard
 }
 
 BasicPageGuard::~BasicPageGuard() {
-  if (page_ == nullptr) return;
+  if (page_ == nullptr) {
+    return;
+  }
   bpm_->UnpinPage(page_->GetPageId(), is_dirty_);
 };  // NOLINT
 
