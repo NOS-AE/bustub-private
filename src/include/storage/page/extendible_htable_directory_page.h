@@ -137,6 +137,11 @@ class ExtendibleHTableDirectoryPage {
   auto CanShrink() -> bool;
 
   /**
+   * @return true if the directory can be expanded
+   */
+  auto CanExpand() -> bool;
+
+  /**
    * @return the current directory size
    */
   auto Size() const -> uint32_t;

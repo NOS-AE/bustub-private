@@ -43,7 +43,7 @@ auto BasicPageGuard::operator=(BasicPageGuard &&that) noexcept -> BasicPageGuard
   return *this;
 }
 
-BasicPageGuard::~BasicPageGuard(){
+BasicPageGuard::~BasicPageGuard() {
   if (page_ == nullptr) return;
   bpm_->UnpinPage(page_->GetPageId(), is_dirty_);
 };  // NOLINT
@@ -80,13 +80,13 @@ auto ReadPageGuard::operator=(ReadPageGuard &&that) noexcept -> ReadPageGuard & 
 }
 
 void ReadPageGuard::Drop() {
-  guard_.page_->RUnlatch();
+  if (guard_.page_ != nullptr) {
+    guard_.page_->RUnlatch();
+  }
   guard_.Drop();
 }
 
-ReadPageGuard::~ReadPageGuard() {
-  Drop();
-}  // NOLINT
+ReadPageGuard::~ReadPageGuard() { Drop(); }  // NOLINT
 
 WritePageGuard::WritePageGuard(WritePageGuard &&that) noexcept = default;
 
@@ -100,12 +100,12 @@ auto WritePageGuard::operator=(WritePageGuard &&that) noexcept -> WritePageGuard
 }
 
 void WritePageGuard::Drop() {
-  guard_.page_->WUnlatch();
+  if (guard_.page_ != nullptr) {
+    guard_.page_->WUnlatch();
+  }
   guard_.Drop();
 }
 
-WritePageGuard::~WritePageGuard() {
-  Drop();
-}  // NOLINT
+WritePageGuard::~WritePageGuard() { Drop(); }  // NOLINT
 
 }  // namespace bustub

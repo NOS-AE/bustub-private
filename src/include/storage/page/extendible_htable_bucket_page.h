@@ -131,6 +131,15 @@ class ExtendibleHTableBucketPage {
    */
   void PrintBucket() const;
 
+  /**
+   * Merge bucket into 'this' bucket.
+   *
+   * @param bucket bucket to merge into 'this'
+   * @return if merged successfully
+   */
+  auto MergeBucket(const ExtendibleHTableBucketPage<KeyType, ValueType, KeyComparator> &bucket,
+                   const KeyComparator &cmp) -> bool;
+
  private:
   uint32_t size_;
   uint32_t max_size_;

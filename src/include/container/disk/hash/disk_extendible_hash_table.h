@@ -110,6 +110,18 @@ class DiskExtendibleHashTable {
    */
   auto Hash(K key) const -> uint32_t;
 
+  /**
+   * Insert kv into directory. split bucket recursively if needed.
+   *
+   * @return if inserted successfully. false indicate the directory can't be expanded anymore.
+   */
+  auto InsertToDirectory(ExtendibleHTableDirectoryPage *dir, uint32_t hash, const K &key, const V &value) -> bool;
+
+  /**
+   * Get the bucket, merge it with its split image if possible, and shrink the directory if it's CanShrink
+   */
+  // void DiskExtendibleHashTable<K, V, KC>::MergeBucket(ExtendibleHTableDirectoryPage *dir, uint32_t bucket_idx);
+
   auto InsertToNewDirectory(ExtendibleHTableHeaderPage *header, uint32_t directory_idx, uint32_t hash, const K &key,
                             const V &value) -> bool;
 
@@ -132,6 +144,8 @@ class DiskExtendibleHashTable {
   uint32_t directory_max_depth_;
   uint32_t bucket_max_size_;
   page_id_t header_page_id_;
+
+  mutable std::shared_mutex rwlatch_;
 };
 
 }  // namespace bustub

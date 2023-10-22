@@ -21,6 +21,7 @@ namespace bustub {
 template <typename K, typename V, typename KC>
 void ExtendibleHTableBucketPage<K, V, KC>::Init(uint32_t max_size) {
   // throw NotImplementedException("ExtendibleHTableBucketPage not implemented");
+  size_ = 0;
   max_size_ = max_size;
 }
 
@@ -40,12 +41,13 @@ auto ExtendibleHTableBucketPage<K, V, KC>::Insert(const K &key, const V &value, 
   if (size_ == max_size_) {
     return false;
   }
+  // make sure unique key
   for (uint32_t i = 0; i < size_; i++) {
     if (cmp(key, array_[i].first) == 0) {
       return false;
     }
   }
-  array_[size_++] = { key, value };
+  array_[size_++] = {key, value};
   return true;
 }
 
@@ -109,6 +111,18 @@ auto ExtendibleHTableBucketPage<K, V, KC>::IsFull() const -> bool {
 template <typename K, typename V, typename KC>
 auto ExtendibleHTableBucketPage<K, V, KC>::IsEmpty() const -> bool {
   return size_ == 0;
+}
+
+template <typename K, typename V, typename KC>
+auto ExtendibleHTableBucketPage<K, V, KC>::MergeBucket(const ExtendibleHTableBucketPage<K, V, KC> &bucket,
+                                                       const KC &cmp) -> bool {
+  if (size_ + bucket.size_ > max_size_) {
+    return false;
+  }
+  for (uint32_t i = 0; i < bucket.size_; i++) {
+    Insert(bucket.EntryAt(i).first, bucket.EntryAt(i).second, cmp);
+  }
+  return true;
 }
 
 template class ExtendibleHTableBucketPage<int, int, IntComparator>;
